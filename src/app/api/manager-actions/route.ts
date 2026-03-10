@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { validateRequired } from "@/lib/utils/validation";
+import { logAudit } from "@/lib/utils/audit";
 
 const VALID_ACTION_TYPES = ["dismiss", "accept", "status_change", "rice_override"] as const;
 
@@ -51,6 +52,16 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Fire-and-forget audit log
+    logAudit({
+      user_id: userId,
+      action: "create",
+      table_name: "manager_actions",
+      record_id: data.id,
+      new_data: data as Record<string, unknown>,
+      ip_address: request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip"),
+    });
 
     return NextResponse.json(data, { status: 201 });
   } catch (error) {

@@ -3,6 +3,9 @@ import { createServerClient } from "@/lib/supabase/server";
 import { parsePagination, paginationMeta } from "@/lib/utils/pagination";
 import { validateRequired } from "@/lib/utils/validation";
 import { processInsight } from "@/lib/pipeline/layer1";
+import { logAudit } from "@/lib/utils/audit";
+import { hashApiKey } from "@/lib/utils/api-keys";
+import { getOrgIdFromRequest } from "@/lib/org-context";
 
 // GET /api/insights - List insights with filters, pagination, sorting
 export async function GET(request: NextRequest) {
@@ -50,7 +53,14 @@ export async function GET(request: NextRequest) {
     const dateFrom = searchParams.get("date_from");
     const dateTo = searchParams.get("date_to");
 
+    // Org scoping
+    const orgId = getOrgIdFromRequest(request);
+
     if (!themeId) {
+      // Apply org filter
+      if (orgId) {
+        query = query.eq("org_id", orgId);
+      }
       // Apply filters directly on insights query
       if (status) {
         const statuses = status.split(",").map((s) => s.trim());
@@ -124,6 +134,9 @@ export async function GET(request: NextRequest) {
         .select("*", { count: "exact" })
         .in("id", insightIds);
 
+      if (orgId) {
+        insightsQuery = insightsQuery.eq("org_id", orgId);
+      }
       if (status) {
         const statuses = status.split(",").map((s) => s.trim());
         insightsQuery = insightsQuery.in("status", statuses);
@@ -192,13 +205,42 @@ export async function POST(request: NextRequest) {
 
     const supabase = createServerClient();
 
-    // Extract user_id from auth header if present (set by authenticated clients)
+    // Extract user_id from auth header if present
     const authHeader = request.headers.get("authorization");
     let userId: string | null = null;
     if (authHeader?.startsWith("Bearer ")) {
       const token = authHeader.slice(7);
-      const { data: { user } } = await supabase.auth.getUser(token);
-      userId = user?.id ?? null;
+
+      if (token.startsWith("sk_")) {
+        // API key authentication: hash the key and look up the owner
+        const keyHash = hashApiKey(token);
+        const { data: apiKey } = await supabase
+          .from("api_keys")
+          .select("id, user_id")
+          .eq("key_hash", keyHash)
+          .is("revoked_at", null)
+          .single();
+
+        if (!apiKey) {
+          return NextResponse.json(
+            { error: "Invalid API key" },
+            { status: 401 }
+          );
+        }
+
+        userId = apiKey.user_id;
+
+        // Update last_used_at (fire-and-forget)
+        supabase
+          .from("api_keys")
+          .update({ last_used_at: new Date().toISOString() })
+          .eq("id", apiKey.id)
+          .then();
+      } else {
+        // Supabase session token authentication
+        const { data: { user } } = await supabase.auth.getUser(token);
+        userId = user?.id ?? null;
+      }
     }
 
     const { data, error } = await supabase
@@ -220,6 +262,16 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Fire-and-forget audit log
+    logAudit({
+      user_id: userId,
+      action: "create",
+      table_name: "insights",
+      record_id: data.id,
+      new_data: data,
+      ip_address: request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip"),
+    });
 
     // Fire-and-forget Layer 1 processing
     try {

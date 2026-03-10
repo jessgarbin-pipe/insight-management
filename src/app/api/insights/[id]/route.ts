@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { validateEnum, validateNumericRange } from "@/lib/utils/validation";
+import { logAudit } from "@/lib/utils/audit";
 
 const VALID_STATUSES = ["open", "related", "closed", "archived"] as const;
 
@@ -89,10 +90,10 @@ export async function PATCH(
       );
     }
 
-    // Fetch current insight to check for status changes
+    // Fetch current insight to check for status changes and capture old data for audit
     const { data: current, error: fetchError } = await supabase
       .from("insights")
-      .select("status")
+      .select("*")
       .eq("id", id)
       .single();
 
@@ -118,6 +119,16 @@ export async function PATCH(
         { status: 500 }
       );
     }
+
+    // Fire-and-forget audit log
+    logAudit({
+      action: "update",
+      table_name: "insights",
+      record_id: id,
+      old_data: current as Record<string, unknown>,
+      new_data: data as Record<string, unknown>,
+      ip_address: request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip"),
+    });
 
     // Log manager action if status changed
     if (updates.status && updates.status !== current.status) {
@@ -166,12 +177,19 @@ export async function PATCH(
 
 // DELETE /api/insights/:id
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
     const supabase = createServerClient();
+
+    // Fetch the record before deleting for audit purposes
+    const { data: existing } = await supabase
+      .from("insights")
+      .select("*")
+      .eq("id", id)
+      .single();
 
     const { error } = await supabase.from("insights").delete().eq("id", id);
 
@@ -181,6 +199,17 @@ export async function DELETE(
         { error: "Failed to delete insight" },
         { status: 500 }
       );
+    }
+
+    // Fire-and-forget audit log
+    if (existing) {
+      logAudit({
+        action: "delete",
+        table_name: "insights",
+        record_id: id,
+        old_data: existing as Record<string, unknown>,
+        ip_address: request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip"),
+      });
     }
 
     return new NextResponse(null, { status: 204 });

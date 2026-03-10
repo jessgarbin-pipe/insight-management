@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { validateEnum } from "@/lib/utils/validation";
 import { parsePagination, paginationMeta } from "@/lib/utils/pagination";
+import { logAudit } from "@/lib/utils/audit";
 
 const VALID_STATUSES = [
   "identified",
@@ -123,6 +124,13 @@ export async function PATCH(
       );
     }
 
+    // Fetch current record for audit old_data
+    const { data: existing } = await supabase
+      .from("opportunities")
+      .select("*")
+      .eq("id", id)
+      .single();
+
     const { data, error } = await supabase
       .from("opportunities")
       .update({ status: body.status })
@@ -143,6 +151,16 @@ export async function PATCH(
         { status: 500 }
       );
     }
+
+    // Fire-and-forget audit log
+    logAudit({
+      action: "update",
+      table_name: "opportunities",
+      record_id: id,
+      old_data: existing as Record<string, unknown> | null,
+      new_data: data as Record<string, unknown>,
+      ip_address: request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip"),
+    });
 
     return NextResponse.json(data);
   } catch (error) {
