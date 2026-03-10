@@ -191,6 +191,16 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createServerClient();
+
+    // Extract user_id from auth header if present (set by authenticated clients)
+    const authHeader = request.headers.get("authorization");
+    let userId: string | null = null;
+    if (authHeader?.startsWith("Bearer ")) {
+      const token = authHeader.slice(7);
+      const { data: { user } } = await supabase.auth.getUser(token);
+      userId = user?.id ?? null;
+    }
+
     const { data, error } = await supabase
       .from("insights")
       .insert({
@@ -198,6 +208,7 @@ export async function POST(request: NextRequest) {
         description: body.description,
         source: body.source || "manual",
         metadata: body.metadata || {},
+        ...(userId ? { user_id: userId } : {}),
       })
       .select()
       .single();

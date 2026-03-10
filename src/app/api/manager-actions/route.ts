@@ -23,6 +23,15 @@ export async function POST(request: NextRequest) {
 
     const supabase = createServerClient();
 
+    // Extract user_id from auth header if present
+    const authHeader = request.headers.get("authorization");
+    let userId: string | null = null;
+    if (authHeader?.startsWith("Bearer ")) {
+      const token = authHeader.slice(7);
+      const { data: { user } } = await supabase.auth.getUser(token);
+      userId = user?.id ?? null;
+    }
+
     const { data, error } = await supabase
       .from("manager_actions")
       .insert({
@@ -30,6 +39,7 @@ export async function POST(request: NextRequest) {
         insight_id: body.insight_id ?? null,
         theme_id: body.theme_id ?? null,
         details: body.details ?? {},
+        ...(userId ? { user_id: userId } : {}),
       })
       .select()
       .single();

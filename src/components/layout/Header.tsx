@@ -14,6 +14,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { UserMenu } from "@/components/layout/UserMenu";
 
 const navItems = [
   { label: "Briefing", href: "/" },
@@ -82,6 +83,7 @@ export function Header() {
 
         <div className="ml-auto flex items-center gap-1">
           <ThemeToggle />
+          <UserMenu />
           <div className="md:hidden">
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger asChild>
