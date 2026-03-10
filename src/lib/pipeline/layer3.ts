@@ -4,15 +4,16 @@ import { callClaude } from "@/lib/ai/claude";
 import { briefingPrompt, askPrompt } from "@/lib/ai/prompts";
 import type { BriefingResponse, Insight } from "@/lib/types";
 
-export async function generateBriefing(): Promise<BriefingResponse> {
+export async function generateBriefing(orgId?: string | null): Promise<BriefingResponse> {
   const supabase = createServerClient();
 
   // 1. Determine time window (last briefing or 24 hours)
+  const cacheKey = orgId ? `latest-${orgId}` : "latest";
   let sinceDate: string;
   const { data: cached } = await supabase
     .from("briefing_cache")
     .select("generated_at")
-    .eq("id", "latest")
+    .eq("id", cacheKey)
     .maybeSingle();
 
   if (cached?.generated_at) {
@@ -21,47 +22,57 @@ export async function generateBriefing(): Promise<BriefingResponse> {
     sinceDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   }
 
-  // 2. Gather context
+  // 2. Gather context (scoped by org)
   // a. New insights since last briefing
-  const { data: newInsights } = await supabase
+  let newInsightsQuery = supabase
     .from("insights")
     .select("id, title, source, priority_score")
     .gte("created_at", sinceDate)
     .order("priority_score", { ascending: false, nullsFirst: false })
     .limit(20);
+  if (orgId) newInsightsQuery = newInsightsQuery.eq("org_id", orgId);
+  const { data: newInsights } = await newInsightsQuery;
 
   // b. Themes with trend data
-  const { data: trendThemes } = await supabase
+  let trendThemesQuery = supabase
     .from("themes")
     .select("name, trend, insight_count")
     .not("trend", "is", null)
     .gt("insight_count", 0);
+  if (orgId) trendThemesQuery = trendThemesQuery.eq("org_id", orgId);
+  const { data: trendThemes } = await trendThemesQuery;
 
   // c. New/updated opportunities since last briefing
-  const { data: newOpportunities } = await supabase
+  let newOppsQuery = supabase
     .from("opportunities")
     .select("title, estimated_impact, theme_id")
     .gte("updated_at", sinceDate);
+  if (orgId) newOppsQuery = newOppsQuery.eq("org_id", orgId);
+  const { data: newOpportunities } = await newOppsQuery;
 
   // d. Unresolved high-priority items
-  const { data: highPriorityItems } = await supabase
+  let highPriorityQuery = supabase
     .from("insights")
     .select("id, title, priority_score, status")
     .eq("status", "open")
     .gt("priority_score", 70)
     .order("priority_score", { ascending: false })
     .limit(15);
+  if (orgId) highPriorityQuery = highPriorityQuery.eq("org_id", orgId);
+  const { data: highPriorityItems } = await highPriorityQuery;
 
   // e. Recent manager actions (for adaptiveness)
   const thirtyDaysAgo = new Date(
     Date.now() - 30 * 24 * 60 * 60 * 1000
   ).toISOString();
-  const { data: recentActions } = await supabase
+  let actionsQuery = supabase
     .from("manager_actions")
     .select("action_type, details, theme_id")
     .gte("created_at", thirtyDaysAgo)
     .order("created_at", { ascending: false })
     .limit(50);
+  if (orgId) actionsQuery = actionsQuery.eq("org_id", orgId);
+  const { data: recentActions } = await actionsQuery;
 
   // 3. Build manager action patterns for adaptive briefing
   const managerPatterns: {
@@ -131,16 +142,20 @@ export async function generateBriefing(): Promise<BriefingResponse> {
     if (archiveActions.length > 0) {
       // Check if any insight type is being archived frequently
       for (const type of ["bug", "feature_request", "praise", "question"]) {
-        const { count: archivedCount } = await supabase
+        let archivedQuery = supabase
           .from("insights")
           .select("id", { count: "exact", head: true })
           .eq("type", type)
           .eq("status", "archived");
+        if (orgId) archivedQuery = archivedQuery.eq("org_id", orgId);
+        const { count: archivedCount } = await archivedQuery;
 
-        const { count: totalCount } = await supabase
+        let totalTypeQuery = supabase
           .from("insights")
           .select("id", { count: "exact", head: true })
           .eq("type", type);
+        if (orgId) totalTypeQuery = totalTypeQuery.eq("org_id", orgId);
+        const { count: totalCount } = await totalTypeQuery;
 
         if ((totalCount || 0) >= 3) {
           const rate = (archivedCount || 0) / (totalCount || 1);
@@ -224,9 +239,10 @@ export async function generateBriefing(): Promise<BriefingResponse> {
 
     // 5. Cache the result
     await supabase.from("briefing_cache").upsert({
-      id: "latest",
+      id: cacheKey,
       data: briefing,
       generated_at: briefing.generated_at,
+      ...(orgId ? { org_id: orgId } : {}),
     });
 
     return briefing;

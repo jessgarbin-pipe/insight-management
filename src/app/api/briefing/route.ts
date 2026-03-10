@@ -1,17 +1,23 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { generateBriefing } from "@/lib/pipeline/layer3";
+import { getOrgIdFromRequest } from "@/lib/org-context";
 import type { BriefingResponse } from "@/lib/types";
 
 // POST /api/briefing - Generate or retrieve cached briefing
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
     const supabase = createServerClient();
+    const orgId = getOrgIdFromRequest(request);
 
     // Check if there are any insights at all
-    const { count: insightCount } = await supabase
+    let countQuery = supabase
       .from("insights")
       .select("id", { count: "exact", head: true });
+    if (orgId) {
+      countQuery = countQuery.eq("org_id", orgId);
+    }
+    const { count: insightCount } = await countQuery;
 
     if (!insightCount || insightCount === 0) {
       const emptyBriefing: BriefingResponse = {
@@ -55,11 +61,12 @@ export async function POST() {
       .sort()
       .pop();
 
-    // Check for cached briefing
+    // Check for cached briefing (scoped by org)
+    const cacheKey = orgId ? `latest-${orgId}` : "latest";
     const { data: cached } = await supabase
       .from("briefing_cache")
       .select("*")
-      .eq("id", "latest")
+      .eq("id", cacheKey)
       .single();
 
     if (cached) {
@@ -78,14 +85,15 @@ export async function POST() {
       }
     }
 
-    // Generate new briefing
-    const briefing = await generateBriefing();
+    // Generate new briefing (org-scoped)
+    const briefing = await generateBriefing(orgId);
 
     // Cache the result
     await supabase.from("briefing_cache").upsert({
-      id: "latest",
+      id: cacheKey,
       data: briefing,
       generated_at: briefing.generated_at,
+      ...(orgId ? { org_id: orgId } : {}),
     });
 
     return NextResponse.json(briefing);

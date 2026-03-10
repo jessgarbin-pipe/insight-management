@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
+import { getOrgIdFromRequest } from "@/lib/org-context";
 
 const CSV_COLUMNS = [
   "title",
@@ -63,11 +64,16 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const orgId = getOrgIdFromRequest(request);
+
     let query = supabase
       .from("insights")
       .select(CSV_COLUMNS.join(","))
       .order("priority_score", { ascending: false, nullsFirst: false });
 
+    if (orgId) {
+      query = query.eq("org_id", orgId);
+    }
     if (insightIds) {
       query = query.in("id", insightIds);
     }

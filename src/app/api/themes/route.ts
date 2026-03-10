@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { parsePagination, paginationMeta } from "@/lib/utils/pagination";
+import { getOrgIdFromRequest } from "@/lib/org-context";
 
 // GET /api/themes - List themes with insight_count > 0
 export async function GET(request: NextRequest) {
@@ -8,13 +9,20 @@ export async function GET(request: NextRequest) {
     const supabase = createServerClient();
     const searchParams = request.nextUrl.searchParams;
     const { page, per_page, offset } = parsePagination(searchParams);
+    const orgId = getOrgIdFromRequest(request);
 
-    const { data, error, count } = await supabase
+    let query = supabase
       .from("themes")
       .select("*", { count: "exact" })
       .gt("insight_count", 0)
       .order("aggregated_score", { ascending: false, nullsFirst: false })
       .range(offset, offset + per_page - 1);
+
+    if (orgId) {
+      query = query.eq("org_id", orgId);
+    }
+
+    const { data, error, count } = await query;
 
     if (error) {
       console.error("Themes list error:", error);

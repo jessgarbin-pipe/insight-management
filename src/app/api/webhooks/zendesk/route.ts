@@ -53,7 +53,9 @@ export async function POST(request: NextRequest) {
       ? description.substring(0, 2000) + "..."
       : description || subject;
 
-    // Create insight
+    // Create insight (org_id can be passed via query param or x-org-id header)
+    const orgId = request.nextUrl.searchParams.get("org_id") || request.headers.get("x-org-id") || null;
+
     const supabase = createServerClient();
     const { data, error } = await supabase
       .from("insights")
@@ -69,6 +71,7 @@ export async function POST(request: NextRequest) {
           priority,
           event_type: eventType,
         },
+        ...(orgId ? { org_id: orgId } : {}),
       })
       .select("id")
       .single();

@@ -29,10 +29,56 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
+  // AUTH BYPASS: Authentication disabled temporarily for development
+  // To re-enable, uncomment the block below and remove this bypass section
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // If user is logged in, still handle org cookie setup
+  if (user) {
+    if (user && request.nextUrl.pathname === "/login") {
+      const url = request.nextUrl.clone();
+      url.pathname = "/";
+      return NextResponse.redirect(url);
+    }
+
+    if (
+      !request.nextUrl.pathname.startsWith("/onboarding") &&
+      !request.nextUrl.pathname.startsWith("/invite/") &&
+      !request.nextUrl.pathname.startsWith("/api/") &&
+      !request.nextUrl.pathname.startsWith("/auth/") &&
+      request.nextUrl.pathname !== "/" &&
+      request.nextUrl.pathname !== "/login"
+    ) {
+      const orgId = request.cookies.get("org_id")?.value;
+
+      if (!orgId) {
+        const { data: memberships } = await supabase
+          .from("org_members")
+          .select("org_id")
+          .eq("user_id", user.id)
+          .limit(1);
+
+        if (!memberships || memberships.length === 0) {
+          const url = request.nextUrl.clone();
+          url.pathname = "/onboarding/create-org";
+          return NextResponse.redirect(url);
+        } else {
+          supabaseResponse.cookies.set("org_id", memberships[0].org_id, {
+            path: "/",
+            maxAge: 60 * 60 * 24 * 365,
+            sameSite: "lax",
+          });
+        }
+      }
+    }
+  }
+
+  // No redirect to /login for unauthenticated users — all pages are accessible
+
+  /*
+  // ORIGINAL AUTH LOGIC — uncomment to re-enable authentication:
   const isAuthPage =
     request.nextUrl.pathname === "/login" ||
     request.nextUrl.pathname.startsWith("/auth/");
@@ -56,8 +102,6 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // If user is logged in and has no org, redirect to onboarding
-  // (skip if already on onboarding, invite, or API routes)
   if (
     user &&
     !request.nextUrl.pathname.startsWith("/onboarding") &&
@@ -69,7 +113,6 @@ export async function updateSession(request: NextRequest) {
     const orgId = request.cookies.get("org_id")?.value;
 
     if (!orgId) {
-      // Check if user has any org memberships
       const { data: memberships } = await supabase
         .from("org_members")
         .select("org_id")
@@ -81,7 +124,6 @@ export async function updateSession(request: NextRequest) {
         url.pathname = "/onboarding/create-org";
         return NextResponse.redirect(url);
       } else {
-        // User has orgs but no cookie - set cookie to first org
         supabaseResponse.cookies.set("org_id", memberships[0].org_id, {
           path: "/",
           maxAge: 60 * 60 * 24 * 365,
@@ -90,6 +132,7 @@ export async function updateSession(request: NextRequest) {
       }
     }
   }
+  */
 
   return supabaseResponse;
 }

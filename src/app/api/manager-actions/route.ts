@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { validateRequired } from "@/lib/utils/validation";
 import { logAudit } from "@/lib/utils/audit";
+import { getOrgIdFromRequest } from "@/lib/org-context";
 
 const VALID_ACTION_TYPES = ["dismiss", "accept", "status_change", "rice_override"] as const;
 
@@ -33,6 +34,8 @@ export async function POST(request: NextRequest) {
       userId = user?.id ?? null;
     }
 
+    const orgId = getOrgIdFromRequest(request);
+
     const { data, error } = await supabase
       .from("manager_actions")
       .insert({
@@ -41,6 +44,7 @@ export async function POST(request: NextRequest) {
         theme_id: body.theme_id ?? null,
         details: body.details ?? {},
         ...(userId ? { user_id: userId } : {}),
+        ...(orgId ? { org_id: orgId } : {}),
       })
       .select()
       .single();

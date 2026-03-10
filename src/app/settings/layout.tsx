@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { RiUserLine, RiKey2Line, RiWebhookLine, RiHistoryLine } from "@remixicon/react";
+import { RiUserLine, RiKey2Line, RiWebhookLine, RiHistoryLine, RiTeamLine } from "@remixicon/react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 
 const settingsNav = [
   { label: "Profile", href: "/settings", icon: RiUserLine },
+  { label: "Members", href: "/settings/members", icon: RiTeamLine },
   { label: "API Keys", href: "/settings/api-keys", icon: RiKey2Line },
   { label: "Webhooks", href: "/settings/webhooks", icon: RiWebhookLine },
   { label: "Audit Log", href: "/settings/audit-log", icon: RiHistoryLine },

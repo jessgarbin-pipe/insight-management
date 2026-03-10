@@ -1,21 +1,27 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
+import { getOrgIdFromRequest } from "@/lib/org-context";
 
 // GET /api/stats - Return aggregated stats for dashboard charts
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const supabase = createServerClient();
+    const orgId = getOrgIdFromRequest(request);
 
     // Daily volume: insights per day for the last 30 days
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const since = thirtyDaysAgo.toISOString();
 
-    const { data: recentInsights } = await supabase
+    let insightsQuery = supabase
       .from("insights")
       .select("created_at")
       .gte("created_at", since)
       .order("created_at", { ascending: true });
+    if (orgId) {
+      insightsQuery = insightsQuery.eq("org_id", orgId);
+    }
+    const { data: recentInsights } = await insightsQuery;
 
     const dailyCounts = new Map<string, number>();
     // Pre-fill all 30 days with 0
@@ -35,11 +41,15 @@ export async function GET() {
     );
 
     // Theme distribution: top 10 themes by insight_count
-    const { data: themes } = await supabase
+    let themesQuery = supabase
       .from("themes")
       .select("name, insight_count")
       .order("insight_count", { ascending: false })
       .limit(10);
+    if (orgId) {
+      themesQuery = themesQuery.eq("org_id", orgId);
+    }
+    const { data: themes } = await themesQuery;
 
     const theme_distribution = (themes || []).map((t) => ({
       name: t.name,
@@ -50,10 +60,14 @@ export async function GET() {
     const statuses = ["open", "related", "closed", "archived"] as const;
     const statusCounts = await Promise.all(
       statuses.map(async (status) => {
-        const { count } = await supabase
+        let statusQuery = supabase
           .from("insights")
           .select("id", { count: "exact", head: true })
           .eq("status", status);
+        if (orgId) {
+          statusQuery = statusQuery.eq("org_id", orgId);
+        }
+        const { count } = await statusQuery;
         return { status, count: count || 0 };
       })
     );

@@ -97,16 +97,21 @@ export async function processInsight(insightId: string): Promise<void> {
     }
   }
 
-  // 4. Fetch existing themes for classification
+  // 4. Fetch existing themes for classification (scoped by org)
   // 5. Call Claude for combined classification + enrichment + scoring
   // 6. Handle themes and update insight
+  const insightOrgId = insight.org_id as string | null;
   try {
-    const { data: existingThemes } = await supabase
+    let themesQuery = supabase
       .from("themes")
       .select("name, description")
       .gt("insight_count", 0)
       .order("insight_count", { ascending: false })
       .limit(50);
+    if (insightOrgId) {
+      themesQuery = themesQuery.eq("org_id", insightOrgId);
+    }
+    const { data: existingThemes } = await themesQuery;
 
     const prompt = layer1ProcessingPrompt(
       {
@@ -166,23 +171,27 @@ export async function processInsight(insightId: string): Promise<void> {
       try {
         let themeId: string;
 
-        // Case-insensitive search for existing theme
-        const { data: existingTheme } = await supabase
+        // Case-insensitive search for existing theme (scoped by org)
+        let themeSearchQuery = supabase
           .from("themes")
           .select("id, name")
           .ilike("name", themeResult.name)
-          .limit(1)
-          .maybeSingle();
+          .limit(1);
+        if (insightOrgId) {
+          themeSearchQuery = themeSearchQuery.eq("org_id", insightOrgId);
+        }
+        const { data: existingTheme } = await themeSearchQuery.maybeSingle();
 
         if (existingTheme) {
           themeId = existingTheme.id;
         } else if (themeResult.is_new) {
-          // Create new theme
+          // Create new theme (with org_id)
           const { data: newTheme, error: themeError } = await supabase
             .from("themes")
             .insert({
               name: themeResult.name,
               description: themeResult.description || null,
+              ...(insightOrgId ? { org_id: insightOrgId } : {}),
             })
             .select("id")
             .single();
@@ -199,6 +208,7 @@ export async function processInsight(insightId: string): Promise<void> {
             .insert({
               name: themeResult.name,
               description: themeResult.description || null,
+              ...(insightOrgId ? { org_id: insightOrgId } : {}),
             })
             .select("id")
             .single();
@@ -230,12 +240,15 @@ export async function processInsight(insightId: string): Promise<void> {
     // This is safe whether or not the DB trigger fired
     const linkedThemeIds = new Set<string>();
     for (const themeResult of themesToProcess) {
-      const { data: th } = await supabase
+      let reconcileQuery = supabase
         .from("themes")
         .select("id")
         .ilike("name", themeResult.name)
-        .limit(1)
-        .maybeSingle();
+        .limit(1);
+      if (insightOrgId) {
+        reconcileQuery = reconcileQuery.eq("org_id", insightOrgId);
+      }
+      const { data: th } = await reconcileQuery.maybeSingle();
       if (th) linkedThemeIds.add(th.id);
     }
 

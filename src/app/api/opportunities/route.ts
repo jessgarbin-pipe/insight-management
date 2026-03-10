@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { parsePagination, paginationMeta } from "@/lib/utils/pagination";
 import { validateRequired } from "@/lib/utils/validation";
+import { getOrgIdFromRequest } from "@/lib/org-context";
 
 // GET /api/opportunities - List opportunities ordered by impact
 export async function GET(request: NextRequest) {
@@ -9,14 +10,14 @@ export async function GET(request: NextRequest) {
     const supabase = createServerClient();
     const searchParams = request.nextUrl.searchParams;
     const { page, per_page, offset } = parsePagination(searchParams);
+    const orgId = getOrgIdFromRequest(request);
 
-    // Supabase doesn't support custom sort by enum mapping directly,
-    // so we fetch all and sort in-memory, or use a workaround.
-    // For MVP, fetch with count and sort by estimated_impact then by created_at.
-    // We'll do a two-step: fetch all matching, sort, then paginate.
-    const { data: allData, error: allError } = await supabase
-      .from("opportunities")
-      .select("*");
+    let oppQuery = supabase.from("opportunities").select("*");
+    if (orgId) {
+      oppQuery = oppQuery.eq("org_id", orgId);
+    }
+
+    const { data: allData, error: allError } = await oppQuery;
 
     if (allError) {
       console.error("Opportunities list error:", allError);
@@ -87,6 +88,7 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createServerClient();
+    const orgId = getOrgIdFromRequest(request);
 
     const { data, error } = await supabase
       .from("opportunities")
@@ -95,6 +97,7 @@ export async function POST(request: NextRequest) {
         description: body.description ?? null,
         estimated_impact: body.estimated_impact ?? null,
         theme_id: body.theme_id ?? null,
+        ...(orgId ? { org_id: orgId } : {}),
       })
       .select()
       .single();

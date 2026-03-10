@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { parseCSV, applyMapping } from "@/lib/utils/csv";
 import { processInsight } from "@/lib/pipeline/layer1";
+import { getOrgIdFromRequest } from "@/lib/org-context";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const MAX_ROWS = 5000;
@@ -55,6 +56,7 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createServerClient();
+    const orgId = getOrgIdFromRequest(request);
     let success = 0;
     let failed = 0;
     const errors: { row: number; reason: string }[] = [];
@@ -83,6 +85,7 @@ export async function POST(request: NextRequest) {
           description: mapped.description.trim(),
           source: mapped.source || "csv",
           metadata: mapped.metadata,
+          ...(orgId ? { org_id: orgId } : {}),
         })
         .select("id")
         .single();
