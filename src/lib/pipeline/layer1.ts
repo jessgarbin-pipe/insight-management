@@ -2,6 +2,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import { generateEmbedding } from "@/lib/ai/embeddings";
 import { callClaude } from "@/lib/ai/claude";
 import { layer1ProcessingPrompt } from "@/lib/ai/prompts";
+import { notifyHighPriorityInsight } from "@/lib/email/notify-high-priority";
 
 interface Layer1Response {
   themes: { name: string; is_new: boolean; description?: string }[];
@@ -145,6 +146,17 @@ export async function processInsight(insightId: string): Promise<void> {
 
     if (updateError) {
       console.error(`[Layer 1] Failed to update insight ${insightId}:`, updateError);
+    }
+
+    // 7b. Send high-priority alert if score > 80 (fire-and-forget)
+    if (priorityScore > 80) {
+      notifyHighPriorityInsight({
+        id: insightId,
+        title: insight.title,
+        description: insight.description,
+        priority_score: priorityScore,
+        user_id: insight.user_id ?? null,
+      });
     }
 
     // 8. Handle themes (limit to 3)
