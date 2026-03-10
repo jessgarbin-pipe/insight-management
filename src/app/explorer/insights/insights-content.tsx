@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { InsightTable } from "@/components/insights/InsightTable";
 import { InsightFilters } from "@/components/insights/InsightFilters";
@@ -11,6 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RiDownloadLine } from "@remixicon/react";
 import { toast } from "sonner";
+import { useRealtime } from "@/components/providers/RealtimeProvider";
 import type {
   Insight,
   Theme,
@@ -30,6 +31,7 @@ export function InsightsContent() {
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [newInsightCount, setNewInsightCount] = useState(0);
 
   const [search, setSearch] = useState(searchParams.get("search") || "");
   const [status, setStatus] = useState(
@@ -45,6 +47,44 @@ export function InsightsContent() {
     searchParams.get("date_from") || ""
   );
   const [dateTo, setDateTo] = useState(searchParams.get("date_to") || "");
+
+  const { lastInsightEvent } = useRealtime();
+  const prevEventRef = useRef(lastInsightEvent);
+
+  // Listen for realtime insight events
+  useEffect(() => {
+    if (!lastInsightEvent || lastInsightEvent === prevEventRef.current) return;
+    prevEventRef.current = lastInsightEvent;
+
+    if (lastInsightEvent.eventType === "INSERT") {
+      setNewInsightCount((c) => c + 1);
+    } else if (lastInsightEvent.eventType === "UPDATE") {
+      // In-place update when AI fields populate
+      const updated = lastInsightEvent.record;
+      const id = updated.id as string;
+      setInsights((prev) =>
+        prev.map((insight) =>
+          insight.id === id
+            ? {
+                ...insight,
+                sentiment: (updated.sentiment as Insight["sentiment"]) ?? insight.sentiment,
+                type: (updated.type as Insight["type"]) ?? insight.type,
+                priority_score:
+                  (updated.priority_score as number | null) ?? insight.priority_score,
+                urgency: (updated.urgency as Insight["urgency"]) ?? insight.urgency,
+                status: (updated.status as Insight["status"]) ?? insight.status,
+                title: (updated.title as string) ?? insight.title,
+              }
+            : insight
+        )
+      );
+    }
+  }, [lastInsightEvent]);
+
+  const handleRefreshNew = () => {
+    setNewInsightCount(0);
+    fetchInsights();
+  };
 
   const updateUrl = useCallback(
     (overrides: Record<string, string>) => {
@@ -215,7 +255,18 @@ export function InsightsContent() {
         </p>
       </div>
 
-      <div className="flex items-start justify-between gap-4">
+      {newInsightCount > 0 && (
+        <div className="flex items-center justify-between rounded-md border border-blue-200 bg-blue-50 px-4 py-2 dark:border-blue-800 dark:bg-blue-950">
+          <span className="text-sm text-blue-700 dark:text-blue-300">
+            {newInsightCount} new insight{newInsightCount !== 1 ? "s" : ""} available
+          </span>
+          <Button variant="ghost" size="sm" onClick={handleRefreshNew}>
+            Refresh
+          </Button>
+        </div>
+      )}
+
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
         <InsightFilters
           search={search}
           onSearchChange={(v) => {

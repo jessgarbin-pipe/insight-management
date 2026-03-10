@@ -46,10 +46,10 @@ export function BriefingItemCard({
   return (
     <Card>
       <CardContent className="pt-4">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
           <div className="min-w-0 flex-1 space-y-2">
             <p className="text-sm">{item.description}</p>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <Badge variant="outline">{item.suggested_action.label}</Badge>
               <span className="text-xs text-muted-foreground">
                 Priority: {item.priority}

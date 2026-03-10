@@ -127,7 +127,7 @@ export default function InsightDetailPage({
 
       <Card>
         <CardHeader>
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
             <div>
               <CardTitle className="text-lg">{insight.title}</CardTitle>
               <CardDescription className="mt-1">

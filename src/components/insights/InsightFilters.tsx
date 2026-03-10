@@ -48,16 +48,16 @@ export function InsightFilters({
 }: InsightFiltersProps) {
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-3 flex-wrap">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:flex md:items-center gap-3">
         <Input
           placeholder="Search insights..."
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="max-w-xs"
+          className="sm:col-span-2 md:max-w-xs"
         />
 
         <Select value={status} onValueChange={onStatusChange}>
-          <SelectTrigger className="w-[130px]">
+          <SelectTrigger className="w-full md:w-[130px]">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
@@ -70,7 +70,7 @@ export function InsightFilters({
         </Select>
 
         <Select value={themeId} onValueChange={onThemeChange}>
-          <SelectTrigger className="w-[160px]">
+          <SelectTrigger className="w-full md:w-[160px]">
             <SelectValue placeholder="Theme" />
           </SelectTrigger>
           <SelectContent>
@@ -84,7 +84,7 @@ export function InsightFilters({
         </Select>
 
         <Select value={source} onValueChange={onSourceChange}>
-          <SelectTrigger className="w-[130px]">
+          <SelectTrigger className="w-full md:w-[130px]">
             <SelectValue placeholder="Source" />
           </SelectTrigger>
           <SelectContent>
@@ -98,23 +98,23 @@ export function InsightFilters({
         </Select>
       </div>
 
-      <div className="flex items-center gap-3 flex-wrap">
+      <div className="grid grid-cols-1 sm:flex sm:items-center gap-3">
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">From:</span>
+          <span className="text-xs text-muted-foreground shrink-0">From:</span>
           <Input
             type="date"
             value={dateFrom}
             onChange={(e) => onDateFromChange(e.target.value)}
-            className="w-[150px]"
+            className="w-full sm:w-[150px]"
           />
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">To:</span>
+          <span className="text-xs text-muted-foreground shrink-0">To:</span>
           <Input
             type="date"
             value={dateTo}
             onChange={(e) => onDateToChange(e.target.value)}
-            className="w-[150px]"
+            className="w-full sm:w-[150px]"
           />
         </div>
         <Button variant="ghost" size="sm" onClick={onReset}>
