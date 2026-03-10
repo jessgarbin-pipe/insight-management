@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { RiDownloadLine } from "@remixicon/react";
 import { toast } from "sonner";
 import type {
   Insight,
@@ -143,6 +144,19 @@ export function InsightsContent() {
     }
   };
 
+  const handleExportCSV = () => {
+    const params = new URLSearchParams();
+    if (search) params.set("search", search);
+    if (status && status !== "all") params.set("status", status);
+    if (themeId && themeId !== "all") params.set("theme_id", themeId);
+    if (source && source !== "all") params.set("source", source);
+    if (dateFrom) params.set("date_from", dateFrom);
+    if (dateTo) params.set("date_to", dateTo);
+
+    const url = `/api/insights/export?${params.toString()}`;
+    window.location.href = url;
+  };
+
   const handleReset = () => {
     setSearch("");
     setStatus("open");
@@ -201,41 +215,47 @@ export function InsightsContent() {
         </p>
       </div>
 
-      <InsightFilters
-        search={search}
-        onSearchChange={(v) => {
-          setSearch(v);
-          setPage(1);
-        }}
-        status={status}
-        onStatusChange={(v) => {
-          setStatus(v);
-          setPage(1);
-        }}
-        themeId={themeId}
-        onThemeChange={(v) => {
-          setThemeId(v);
-          setPage(1);
-        }}
-        source={source}
-        onSourceChange={(v) => {
-          setSource(v);
-          setPage(1);
-        }}
-        dateFrom={dateFrom}
-        onDateFromChange={(v) => {
-          setDateFrom(v);
-          setPage(1);
-        }}
-        dateTo={dateTo}
-        onDateToChange={(v) => {
-          setDateTo(v);
-          setPage(1);
-        }}
-        themes={themes}
-        sources={sources}
-        onReset={handleReset}
-      />
+      <div className="flex items-start justify-between gap-4">
+        <InsightFilters
+          search={search}
+          onSearchChange={(v) => {
+            setSearch(v);
+            setPage(1);
+          }}
+          status={status}
+          onStatusChange={(v) => {
+            setStatus(v);
+            setPage(1);
+          }}
+          themeId={themeId}
+          onThemeChange={(v) => {
+            setThemeId(v);
+            setPage(1);
+          }}
+          source={source}
+          onSourceChange={(v) => {
+            setSource(v);
+            setPage(1);
+          }}
+          dateFrom={dateFrom}
+          onDateFromChange={(v) => {
+            setDateFrom(v);
+            setPage(1);
+          }}
+          dateTo={dateTo}
+          onDateToChange={(v) => {
+            setDateTo(v);
+            setPage(1);
+          }}
+          themes={themes}
+          sources={sources}
+          onReset={handleReset}
+        />
+        <Button variant="outline" size="sm" onClick={handleExportCSV}>
+          <RiDownloadLine className="h-4 w-4 mr-1.5" />
+          Export CSV
+        </Button>
+      </div>
 
       {insights.length === 0 ? (
         <EmptyState
