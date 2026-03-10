@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { OpportunityCard } from "@/components/opportunities/OpportunityCard";
 import { Pagination } from "@/components/shared/Pagination";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { useRealtime } from "@/components/providers/RealtimeProvider";
 import type { Opportunity, PaginatedResponse } from "@/lib/types";
 
 export default function OpportunitiesPage() {
@@ -16,6 +17,9 @@ export default function OpportunitiesPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const { lastOpportunityEvent } = useRealtime();
+  const prevEventRef = useRef(lastOpportunityEvent);
 
   const fetchOpportunities = useCallback(async () => {
     setLoading(true);
@@ -38,6 +42,18 @@ export default function OpportunitiesPage() {
   useEffect(() => {
     fetchOpportunities();
   }, [fetchOpportunities]);
+
+  // Refetch when opportunities change via realtime
+  useEffect(() => {
+    if (!lastOpportunityEvent || lastOpportunityEvent === prevEventRef.current) return;
+    prevEventRef.current = lastOpportunityEvent;
+
+    if (lastOpportunityEvent.eventType === "INSERT") {
+      const title = lastOpportunityEvent.record.title as string;
+      toast.info(`New opportunity identified: ${title}`);
+    }
+    fetchOpportunities();
+  }, [lastOpportunityEvent, fetchOpportunities]);
 
   const handleStatusChange = async (id: string, status: string) => {
     const prev = opportunities;

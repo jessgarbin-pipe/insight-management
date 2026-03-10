@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { ThemeCard } from "@/components/themes/ThemeCard";
 import { Pagination } from "@/components/shared/Pagination";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useRealtime } from "@/components/providers/RealtimeProvider";
 import type { Theme, PaginatedResponse } from "@/lib/types";
 
 export default function ThemesPage() {
@@ -15,6 +16,9 @@ export default function ThemesPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const { lastThemeEvent } = useRealtime();
+  const prevEventRef = useRef(lastThemeEvent);
 
   const fetchThemes = useCallback(async () => {
     setLoading(true);
@@ -35,6 +39,35 @@ export default function ThemesPage() {
   useEffect(() => {
     fetchThemes();
   }, [fetchThemes]);
+
+  // Refetch when theme data changes via realtime
+  useEffect(() => {
+    if (!lastThemeEvent || lastThemeEvent === prevEventRef.current) return;
+    prevEventRef.current = lastThemeEvent;
+
+    if (lastThemeEvent.eventType === "UPDATE") {
+      // In-place update for insight_count changes
+      const updated = lastThemeEvent.record;
+      const id = updated.id as string;
+      setThemes((prev) =>
+        prev.map((theme) =>
+          theme.id === id
+            ? {
+                ...theme,
+                insight_count:
+                  (updated.insight_count as number) ?? theme.insight_count,
+                aggregated_score:
+                  (updated.aggregated_score as number | null) ?? theme.aggregated_score,
+                trend: (updated.trend as Theme["trend"]) ?? theme.trend,
+              }
+            : theme
+        )
+      );
+    } else {
+      // INSERT or DELETE - full refetch
+      fetchThemes();
+    }
+  }, [lastThemeEvent, fetchThemes]);
 
   if (loading) {
     return (

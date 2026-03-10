@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { RiceOverride } from "@/components/insights/RiceOverride";
+import { useProcessingStatus } from "@/hooks/useProcessingStatus";
 import type { Insight } from "@/lib/types";
 
 export default function InsightDetailPage({
@@ -35,6 +36,19 @@ export default function InsightDetailPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reprocessing, setReprocessing] = useState(false);
+  const processingStatus = useProcessingStatus(id);
+
+  // When processing completes via realtime, refetch to get full data
+  useEffect(() => {
+    if (
+      processingStatus.sentiment !== null ||
+      processingStatus.type !== null ||
+      processingStatus.priority_score !== null
+    ) {
+      fetchInsight();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [processingStatus.sentiment, processingStatus.type, processingStatus.priority_score]);
 
   const fetchInsight = useCallback(async () => {
     setLoading(true);
@@ -75,13 +89,13 @@ export default function InsightDetailPage({
 
   const handleReprocess = async () => {
     setReprocessing(true);
+    processingStatus.startProcessing();
     try {
       const res = await fetch(`/api/insights/${id}/reprocess`, {
         method: "POST",
       });
       if (!res.ok) throw new Error();
-      toast.success("Reprocessing started");
-      setTimeout(fetchInsight, 3000);
+      toast.success("Reprocessing started - updates will appear in real time");
     } catch {
       toast.error("Failed to start reprocessing");
     } finally {
@@ -247,10 +261,21 @@ export default function InsightDetailPage({
               variant="outline"
               size="sm"
               onClick={handleReprocess}
-              disabled={reprocessing}
+              disabled={reprocessing || processingStatus.isProcessing}
             >
-              {reprocessing ? "Reprocessing..." : "Reprocess with AI"}
+              {reprocessing || processingStatus.isProcessing
+                ? "Processing..."
+                : "Reprocess with AI"}
             </Button>
+            {processingStatus.isProcessing && (
+              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+                </span>
+                AI is analyzing this insight...
+              </span>
+            )}
           </div>
         </CardContent>
       </Card>

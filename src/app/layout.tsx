@@ -5,6 +5,7 @@ import "./globals.css";
 import { cn } from "@/lib/utils";
 import { Header } from "@/components/layout/Header";
 import { Toaster } from "@/components/ui/sonner";
+import { RealtimeProvider } from "@/components/providers/RealtimeProvider";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -40,11 +41,13 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <Header />
-          <main className="mx-auto max-w-7xl px-4 py-6 md:px-6">
-            {children}
-          </main>
-          <Toaster />
+          <RealtimeProvider>
+            <Header />
+            <main className="mx-auto max-w-7xl px-4 py-6 md:px-6">
+              {children}
+            </main>
+            <Toaster />
+          </RealtimeProvider>
         </ThemeProvider>
       </body>
     </html>
