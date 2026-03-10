@@ -78,7 +78,7 @@ export async function POST() {
       }
     }
 
-    // Generate new briefing (placeholder in Phase 3, real in Phase 4)
+    // Generate new briefing
     const briefing = await generateBriefing();
 
     // Cache the result

@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Delegate to Layer 3 (placeholder in Phase 3, real in Phase 4)
+    // Delegate to Layer 3
     const result = await askQuestion(body.question.trim());
 
     return NextResponse.json(result);

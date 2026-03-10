@@ -261,7 +261,7 @@ export async function runLayer2(): Promise<{
     // Recalculate scores for all open insights
     const { data: openInsights } = await supabase
       .from("insights")
-      .select("id, priority_score, created_at, metadata")
+      .select("id, priority_score, created_at, metadata, type")
       .eq("status", "open")
       .not("priority_score", "is", null);
 
@@ -325,15 +325,11 @@ export async function runLayer2(): Promise<{
 
         // Type-based archive penalty
         let typeArchivePenalty = 0;
-        const { data: insightWithType } = await supabase
-          .from("insights")
-          .select("type")
-          .eq("id", insight.id)
-          .maybeSingle();
+        const insightType = insight.type as string | null;
 
-        if (insightWithType?.type && typeArchiveRate[insightWithType.type] > 0.3) {
+        if (insightType && typeArchiveRate[insightType] > 0.3) {
           // If >30% of this insight type gets archived, apply penalty
-          typeArchivePenalty = -Math.round(typeArchiveRate[insightWithType.type] * 10);
+          typeArchivePenalty = -Math.round(typeArchiveRate[insightType] * 10);
         }
 
         const newScore = Math.max(

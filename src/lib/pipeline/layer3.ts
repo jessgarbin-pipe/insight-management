@@ -274,7 +274,24 @@ export async function askQuestion(
     });
 
     if (matches && matches.length > 0) {
-      relevantInsights = matches;
+      // RPC returns only { id, similarity } - fetch full insight data
+      const matchedIds = matches.map((m: { id: string }) => m.id);
+      const similarityMap: Record<string, number> = {};
+      for (const m of matches as { id: string; similarity: number }[]) {
+        similarityMap[m.id] = m.similarity;
+      }
+
+      const { data: fullInsights } = await supabase
+        .from("insights")
+        .select("*")
+        .in("id", matchedIds);
+
+      if (fullInsights) {
+        relevantInsights = fullInsights.map((insight) => ({
+          ...insight,
+          similarity: similarityMap[insight.id] ?? 0,
+        })) as (Insight & { similarity: number })[];
+      }
     }
   } catch {
     // RPC might not exist - fall back to fetching recent insights as context

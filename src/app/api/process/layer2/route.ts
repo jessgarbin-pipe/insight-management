@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Run Layer 2 pipeline (placeholder in Phase 3, real in Phase 4)
+    // Run Layer 2 pipeline
     const result = await runLayer2();
 
     return NextResponse.json({

@@ -68,7 +68,7 @@ export default function IngestPage() {
         file,
         mapping: data.mapping,
         preview: data.preview,
-        headers: Object.keys(data.preview[0] || {}),
+        headers: data.headers,
         totalRows: data.total_rows,
       });
     } catch (err) {

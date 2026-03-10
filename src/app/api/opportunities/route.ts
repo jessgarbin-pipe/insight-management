@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { parsePagination, paginationMeta } from "@/lib/utils/pagination";
+import { validateRequired } from "@/lib/utils/validation";
 
 // GET /api/opportunities - List opportunities ordered by impact
 export async function GET(request: NextRequest) {
@@ -68,6 +69,47 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Opportunities GET error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+// POST /api/opportunities - Create a new opportunity
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+
+    const { valid, errors } = validateRequired(body, ["title"]);
+    if (!valid) {
+      return NextResponse.json({ error: errors.join(", ") }, { status: 400 });
+    }
+
+    const supabase = createServerClient();
+
+    const { data, error } = await supabase
+      .from("opportunities")
+      .insert({
+        title: body.title,
+        description: body.description ?? null,
+        estimated_impact: body.estimated_impact ?? null,
+        theme_id: body.theme_id ?? null,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Opportunity insert error:", error);
+      return NextResponse.json(
+        { error: "Failed to create opportunity" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json(data, { status: 201 });
+  } catch (error) {
+    console.error("Opportunities POST error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

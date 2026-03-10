@@ -50,17 +50,42 @@ export default function BriefingPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status: "related" }),
         });
+      } else if (type === "create_opportunity") {
+        await fetch("/api/opportunities", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: params.title || item.description,
+            description: params.description || item.description,
+            estimated_impact: params.estimated_impact || "medium",
+            theme_id: params.theme_id || null,
+          }),
+        });
+      } else if (type === "link_to_opportunity") {
+        await fetch(`/api/insights/${params.insight_id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "related" }),
+        });
+      } else if (type === "archive_theme") {
+        const themeId = params.theme_id as string;
+        if (themeId) {
+          await fetch(`/api/themes/${themeId}/archive`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+          });
+        }
       }
 
-      await fetch("/api/insights", {
+      // Log the manager action
+      await fetch("/api/manager-actions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: `Manager action: accepted briefing item`,
-          description: item.description,
-          source: "system",
-          metadata: {
-            action_type: "accept",
+          action_type: "accept",
+          insight_id: (params.insight_id as string) || null,
+          theme_id: (params.theme_id as string) || null,
+          details: {
             briefing_item_id: item.id,
             suggested_action: item.suggested_action,
           },
@@ -75,6 +100,22 @@ export default function BriefingPage() {
 
   const handleDismiss = async (item: BriefingItem) => {
     try {
+      const { params } = item.suggested_action;
+
+      await fetch("/api/manager-actions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action_type: "dismiss",
+          insight_id: (params.insight_id as string) || null,
+          theme_id: (params.theme_id as string) || null,
+          details: {
+            briefing_item_id: item.id,
+            suggested_action: item.suggested_action,
+          },
+        }),
+      }).catch(() => {});
+
       toast.info("Item dismissed");
     } catch {
       toast.error("Failed to dismiss");

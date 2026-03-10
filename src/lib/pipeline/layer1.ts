@@ -214,6 +214,33 @@ export async function processInsight(insightId: string): Promise<void> {
       }
     }
 
+    // Reconcile insight_count for all themes this insight was linked to
+    // This is safe whether or not the DB trigger fired
+    const linkedThemeIds = new Set<string>();
+    for (const themeResult of themesToProcess) {
+      const { data: th } = await supabase
+        .from("themes")
+        .select("id")
+        .ilike("name", themeResult.name)
+        .limit(1)
+        .maybeSingle();
+      if (th) linkedThemeIds.add(th.id);
+    }
+
+    for (const tid of linkedThemeIds) {
+      const { count } = await supabase
+        .from("insight_themes")
+        .select("insight_id", { count: "exact", head: true })
+        .eq("theme_id", tid);
+
+      if (count !== null) {
+        await supabase
+          .from("themes")
+          .update({ insight_count: count })
+          .eq("id", tid);
+      }
+    }
+
     console.log(
       `[Layer 1] Successfully processed insight ${insightId}: score=${priorityScore}, sentiment=${sentiment}, themes=${themesToProcess.map((t) => t.name).join(", ")}`
     );

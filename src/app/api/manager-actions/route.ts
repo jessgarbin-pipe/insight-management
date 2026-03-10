@@ -1,0 +1,53 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createServerClient } from "@/lib/supabase/server";
+import { validateRequired } from "@/lib/utils/validation";
+
+const VALID_ACTION_TYPES = ["dismiss", "accept", "status_change", "rice_override"] as const;
+
+// POST /api/manager-actions - Log a manager action
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+
+    const { valid, errors } = validateRequired(body, ["action_type"]);
+    if (!valid) {
+      return NextResponse.json({ error: errors.join(", ") }, { status: 400 });
+    }
+
+    if (!VALID_ACTION_TYPES.includes(body.action_type)) {
+      return NextResponse.json(
+        { error: `action_type must be one of: ${VALID_ACTION_TYPES.join(", ")}` },
+        { status: 422 }
+      );
+    }
+
+    const supabase = createServerClient();
+
+    const { data, error } = await supabase
+      .from("manager_actions")
+      .insert({
+        action_type: body.action_type,
+        insight_id: body.insight_id ?? null,
+        theme_id: body.theme_id ?? null,
+        details: body.details ?? {},
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Manager action insert error:", error);
+      return NextResponse.json(
+        { error: "Failed to log manager action" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json(data, { status: 201 });
+  } catch (error) {
+    console.error("Manager actions POST error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
