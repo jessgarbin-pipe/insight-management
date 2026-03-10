@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseCSV, autoMapColumns } from "@/lib/utils/csv";
+import { callClaude } from "@/lib/ai/claude";
+import { csvMappingPrompt } from "@/lib/ai/prompts";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const MAX_ROWS = 5000;
+
+interface CsvMappingResponse {
+  mapping: Record<string, "title" | "description" | "source" | "metadata">;
+}
 
 // POST /api/ingest/csv/preview - Upload CSV, get auto-mapped column mapping + preview
 export async function POST(request: NextRequest) {
@@ -63,12 +69,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Auto-map columns using basic column name matching
-    // Phase 4 will replace this with a Claude-powered mapping
-    const mapping = autoMapColumns(headers);
-
     // Preview first 5 rows
     const preview = rows.slice(0, 5);
+
+    // Try Claude-powered mapping first, fall back to static keyword matching
+    let mapping: Record<string, string>;
+    try {
+      const { system, user } = csvMappingPrompt(headers, preview);
+      const result = await callClaude<CsvMappingResponse>(system, user);
+      mapping = result.mapping;
+    } catch (error) {
+      console.warn("[CSV Preview] Claude mapping failed, using static fallback:", error);
+      mapping = autoMapColumns(headers);
+    }
 
     return NextResponse.json({
       mapping,
