@@ -243,6 +243,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const orgId = getOrgIdFromRequest(request);
+
     const { data, error } = await supabase
       .from("insights")
       .insert({
@@ -251,6 +253,7 @@ export async function POST(request: NextRequest) {
         source: body.source || "manual",
         metadata: body.metadata || {},
         ...(userId ? { user_id: userId } : {}),
+        ...(orgId ? { org_id: orgId } : {}),
       })
       .select()
       .single();

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useTheme } from "next-themes";
-import { RiSunLine, RiMoonLine } from "@remixicon/react";
+import { RiSunLine, RiMoonLine, RiSettings3Line } from "@remixicon/react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { UserMenu } from "@/components/layout/UserMenu";
+import { WorkspaceSwitcher } from "@/components/layout/WorkspaceSwitcher";
 
 const appNavItems = [
   { label: "Dashboard", href: "/dashboard" },
@@ -91,7 +92,16 @@ export function Header() {
           </nav>
         )}
 
-        <div className={cn("flex items-center gap-1", !isLandingPage && "ml-auto")}>
+        <div className={cn("flex items-center gap-2", !isLandingPage && "ml-auto")}>
+          {!isLandingPage && <WorkspaceSwitcher />}
+          {!isLandingPage && (
+            <Button variant="ghost" size="sm" className="h-8 w-8 px-0" asChild>
+              <Link href="/settings">
+                <RiSettings3Line className="h-4 w-4" />
+                <span className="sr-only">Settings</span>
+              </Link>
+            </Button>
+          )}
           {!isLandingPage && <ThemeToggle />}
           {!isLandingPage && <UserMenu />}
           <div className="md:hidden">
@@ -113,19 +123,32 @@ export function Header() {
                       <Link href="/dashboard">Get Started</Link>
                     </Button>
                   ) : (
-                    appNavItems.map((item) => (
+                    <>
+                      {appNavItems.map((item) => (
+                        <Button
+                          key={item.href}
+                          variant={
+                            isActive(pathname, item.href) ? "secondary" : "ghost"
+                          }
+                          className={cn("justify-start")}
+                          asChild
+                          onClick={() => setMobileOpen(false)}
+                        >
+                          <Link href={item.href}>{item.label}</Link>
+                        </Button>
+                      ))}
                       <Button
-                        key={item.href}
-                        variant={
-                          isActive(pathname, item.href) ? "secondary" : "ghost"
-                        }
+                        variant={isActive(pathname, "/settings") ? "secondary" : "ghost"}
                         className={cn("justify-start")}
                         asChild
                         onClick={() => setMobileOpen(false)}
                       >
-                        <Link href={item.href}>{item.label}</Link>
+                        <Link href="/settings">
+                          <RiSettings3Line className="h-4 w-4 mr-1" />
+                          Settings
+                        </Link>
                       </Button>
-                    ))
+                    </>
                   )}
                 </nav>
               </SheetContent>
