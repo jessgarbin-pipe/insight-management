@@ -116,6 +116,11 @@ export function briefingPrompt(context: {
   newOpportunities: { title: string; estimated_impact: string | null; theme_id: string | null }[];
   highPriorityItems: { id: string; title: string; priority_score: number | null; status: string }[];
   recentActions: { action_type: string; details: Record<string, unknown>; theme_id: string | null }[];
+  managerPatterns?: {
+    frequentlyDismissedThemes: { name: string; dismissRate: number }[];
+    frequentlyAcceptedThemes: { name: string; acceptRate: number }[];
+    frequentlyArchivedTypes: { type: string; archiveRate: number }[];
+  };
 }): { system: string; user: string } {
   const system = `You are an AI executive briefing assistant for a product insight management tool.
 
@@ -124,8 +129,10 @@ Generate a concise daily briefing for a product manager. The briefing should:
 2. List action items ordered by priority, each with a suggested action.
 
 ADAPTIVE BEHAVIOR:
-- If the manager frequently dismisses certain theme types, deprioritize them.
-- If the manager frequently accepts certain theme types, boost their priority.
+- If the manager frequently dismisses certain themes, deprioritize items related to those themes. Place them lower in the list or omit them if there are higher-priority items.
+- If the manager frequently accepts certain themes, boost their priority. These are themes the manager cares about -- highlight them early and prominently.
+- If certain insight types (e.g., "praise", "question") are frequently archived by the manager, deprioritize briefing items of those types.
+- Use the MANAGER ACTION PATTERNS section (if provided) to inform your prioritization decisions.
 
 Each action item must have a suggested_action with one of these types:
 - "change_status": Suggest changing an insight's status. params: { "insight_id": "uuid", "new_status": "related|closed|archived" }
@@ -206,6 +213,52 @@ Respond ONLY with valid JSON matching this schema:
           .map(([type, count]) => `- ${type}: ${count} times`)
           .join("\n")
     );
+  }
+
+  if (context.managerPatterns) {
+    const patternLines: string[] = [];
+
+    if (context.managerPatterns.frequentlyDismissedThemes.length > 0) {
+      patternLines.push(
+        "Themes the manager consistently IGNORES (deprioritize these):\n" +
+          context.managerPatterns.frequentlyDismissedThemes
+            .map(
+              (t) =>
+                `- "${t.name}" (dismissed ${Math.round(t.dismissRate * 100)}% of the time)`
+            )
+            .join("\n")
+      );
+    }
+
+    if (context.managerPatterns.frequentlyAcceptedThemes.length > 0) {
+      patternLines.push(
+        "Themes the manager consistently ACTS ON (prioritize these):\n" +
+          context.managerPatterns.frequentlyAcceptedThemes
+            .map(
+              (t) =>
+                `- "${t.name}" (accepted ${Math.round(t.acceptRate * 100)}% of the time)`
+            )
+            .join("\n")
+      );
+    }
+
+    if (context.managerPatterns.frequentlyArchivedTypes.length > 0) {
+      patternLines.push(
+        "Insight types frequently ARCHIVED (deprioritize these):\n" +
+          context.managerPatterns.frequentlyArchivedTypes
+            .map(
+              (t) =>
+                `- "${t.type}" (archived ${Math.round(t.archiveRate * 100)}% of the time)`
+            )
+            .join("\n")
+      );
+    }
+
+    if (patternLines.length > 0) {
+      sections.push(
+        `MANAGER ACTION PATTERNS (last 30 days):\n${patternLines.join("\n\n")}`
+      );
+    }
   }
 
   const user =

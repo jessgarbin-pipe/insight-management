@@ -131,6 +131,29 @@ export async function PATCH(
       });
     }
 
+    // Log manager action if RICE override was applied
+    const meta = updates.metadata as Record<string, unknown> | undefined;
+    if (meta?.manually_scored === true && meta?.rice) {
+      const rice = meta.rice as Record<string, number>;
+      // Find theme_ids linked to this insight for tracking
+      const { data: themeLinks } = await supabase
+        .from("insight_themes")
+        .select("theme_id")
+        .eq("insight_id", id);
+
+      const themeId = themeLinks?.[0]?.theme_id ?? null;
+
+      await supabase.from("manager_actions").insert({
+        action_type: "rice_override",
+        insight_id: id,
+        theme_id: themeId,
+        details: {
+          rice,
+          new_score: updates.priority_score,
+        },
+      });
+    }
+
     return NextResponse.json(data);
   } catch (error) {
     console.error("Insight PATCH error:", error);

@@ -63,7 +63,99 @@ export async function generateBriefing(): Promise<BriefingResponse> {
     .order("created_at", { ascending: false })
     .limit(50);
 
-  // 3. Build prompt and call Claude
+  // 3. Build manager action patterns for adaptive briefing
+  const managerPatterns: {
+    frequentlyDismissedThemes: { name: string; dismissRate: number }[];
+    frequentlyAcceptedThemes: { name: string; acceptRate: number }[];
+    frequentlyArchivedTypes: { type: string; archiveRate: number }[];
+  } = {
+    frequentlyDismissedThemes: [],
+    frequentlyAcceptedThemes: [],
+    frequentlyArchivedTypes: [],
+  };
+
+  if (recentActions && recentActions.length > 0) {
+    // Compute per-theme dismiss/accept rates
+    const themeDismiss: Record<string, number> = {};
+    const themeAccept: Record<string, number> = {};
+
+    for (const action of recentActions) {
+      if (action.theme_id) {
+        if (action.action_type === "dismiss") {
+          themeDismiss[action.theme_id] = (themeDismiss[action.theme_id] || 0) + 1;
+        } else if (action.action_type === "accept") {
+          themeAccept[action.theme_id] = (themeAccept[action.theme_id] || 0) + 1;
+        }
+      }
+    }
+
+    // Get theme names for the IDs
+    const themeIds = [...new Set([...Object.keys(themeDismiss), ...Object.keys(themeAccept)])];
+    if (themeIds.length > 0) {
+      const { data: themeNames } = await supabase
+        .from("themes")
+        .select("id, name")
+        .in("id", themeIds);
+
+      const themeNameMap: Record<string, string> = {};
+      for (const t of themeNames || []) {
+        themeNameMap[t.id] = t.name;
+      }
+
+      for (const themeId of themeIds) {
+        const dismisses = themeDismiss[themeId] || 0;
+        const accepts = themeAccept[themeId] || 0;
+        const total = dismisses + accepts;
+        if (total < 2) continue;
+
+        const dismissRate = dismisses / total;
+        const acceptRate = accepts / total;
+        const name = themeNameMap[themeId] || themeId;
+
+        if (dismissRate > 0.6) {
+          managerPatterns.frequentlyDismissedThemes.push({ name, dismissRate });
+        }
+        if (acceptRate > 0.6) {
+          managerPatterns.frequentlyAcceptedThemes.push({ name, acceptRate });
+        }
+      }
+    }
+
+    // Compute type archive rates
+    const archiveActions = recentActions.filter(
+      (a) =>
+        a.action_type === "status_change" &&
+        (a.details as Record<string, unknown>)?.to_status === "archived"
+    );
+
+    if (archiveActions.length > 0) {
+      // Check if any insight type is being archived frequently
+      for (const type of ["bug", "feature_request", "praise", "question"]) {
+        const { count: archivedCount } = await supabase
+          .from("insights")
+          .select("id", { count: "exact", head: true })
+          .eq("type", type)
+          .eq("status", "archived");
+
+        const { count: totalCount } = await supabase
+          .from("insights")
+          .select("id", { count: "exact", head: true })
+          .eq("type", type);
+
+        if ((totalCount || 0) >= 3) {
+          const rate = (archivedCount || 0) / (totalCount || 1);
+          if (rate > 0.3) {
+            managerPatterns.frequentlyArchivedTypes.push({
+              type,
+              archiveRate: rate,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // 4. Build prompt and call Claude
   const prompt = briefingPrompt({
     newInsights: (newInsights || []).map((i) => ({
       title: i.title,
@@ -92,6 +184,7 @@ export async function generateBriefing(): Promise<BriefingResponse> {
       details: (a.details as Record<string, unknown>) || {},
       theme_id: a.theme_id,
     })),
+    managerPatterns,
   });
 
   const hasAnyContext =

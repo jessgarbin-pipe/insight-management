@@ -200,17 +200,62 @@ export async function runLayer2(): Promise<{
       .gte("created_at", thirtyDaysAgo);
 
     // Build theme preference map from manager actions
+    const themeDismissCount: Record<string, number> = {};
+    const themeAcceptCount: Record<string, number> = {};
     const themePreferences: Record<string, number> = {};
+    // Track insight types that get archived frequently
+    const typeArchiveCount: Record<string, number> = {};
+    const typeTotalCount: Record<string, number> = {};
+
     for (const action of recentActions || []) {
       if (action.theme_id) {
         if (action.action_type === "dismiss") {
+          themeDismissCount[action.theme_id] =
+            (themeDismissCount[action.theme_id] || 0) + 1;
           themePreferences[action.theme_id] =
             (themePreferences[action.theme_id] || 0) - 1;
         } else if (action.action_type === "accept") {
+          themeAcceptCount[action.theme_id] =
+            (themeAcceptCount[action.theme_id] || 0) + 1;
           themePreferences[action.theme_id] =
             (themePreferences[action.theme_id] || 0) + 1;
         }
       }
+
+      // Track status_change actions where insights are archived, by type
+      if (
+        action.action_type === "status_change" &&
+        action.insight_id &&
+        (action.details as Record<string, unknown>)?.to_status === "archived"
+      ) {
+        // Look up the insight type (we'll batch this below)
+        const { data: archivedInsight } = await supabase
+          .from("insights")
+          .select("type")
+          .eq("id", action.insight_id)
+          .maybeSingle();
+
+        if (archivedInsight?.type) {
+          typeArchiveCount[archivedInsight.type] =
+            (typeArchiveCount[archivedInsight.type] || 0) + 1;
+        }
+      }
+    }
+
+    // Count total insights by type (for ratio calculation)
+    for (const t of ["bug", "feature_request", "praise", "question"]) {
+      const { count } = await supabase
+        .from("insights")
+        .select("id", { count: "exact", head: true })
+        .eq("type", t);
+      typeTotalCount[t] = count || 0;
+    }
+
+    // Calculate type archive rates (0-1)
+    const typeArchiveRate: Record<string, number> = {};
+    for (const [type, archived] of Object.entries(typeArchiveCount)) {
+      const total = typeTotalCount[type] || 1;
+      typeArchiveRate[type] = archived / total;
     }
 
     // Recalculate scores for all open insights
@@ -253,15 +298,47 @@ export async function runLayer2(): Promise<{
               Math.min(10, count * 1.5)
             );
 
-            // Manager preference adjustment
-            const pref = themePreferences[link.theme_id] || 0;
-            managerAdjustment += pref * 3; // Each dismiss/accept shifts by 3 points
+            // Manager preference adjustment based on dismiss/accept rates
+            const dismisses = themeDismissCount[link.theme_id] || 0;
+            const accepts = themeAcceptCount[link.theme_id] || 0;
+            const totalActions = dismisses + accepts;
+
+            if (totalActions >= 2) {
+              // Only adjust when there's a meaningful pattern (2+ actions)
+              const dismissRate = dismisses / totalActions;
+              const acceptRate = accepts / totalActions;
+
+              if (dismissRate > 0.6) {
+                // High dismiss rate: reduce priority proportionally
+                managerAdjustment -= Math.round(dismissRate * 15);
+              } else if (acceptRate > 0.6) {
+                // High accept rate: boost priority proportionally
+                managerAdjustment += Math.round(acceptRate * 10);
+              }
+            } else {
+              // Fallback to simple preference count
+              const pref = themePreferences[link.theme_id] || 0;
+              managerAdjustment += pref * 3;
+            }
           }
+        }
+
+        // Type-based archive penalty
+        let typeArchivePenalty = 0;
+        const { data: insightWithType } = await supabase
+          .from("insights")
+          .select("type")
+          .eq("id", insight.id)
+          .maybeSingle();
+
+        if (insightWithType?.type && typeArchiveRate[insightWithType.type] > 0.3) {
+          // If >30% of this insight type gets archived, apply penalty
+          typeArchivePenalty = -Math.round(typeArchiveRate[insightWithType.type] * 10);
         }
 
         const newScore = Math.max(
           0,
-          Math.min(100, Math.round(baseScore + recencyBoost + themeSizeBoost + managerAdjustment))
+          Math.min(100, Math.round(baseScore + recencyBoost + themeSizeBoost + managerAdjustment + typeArchivePenalty))
         );
 
         if (newScore !== baseScore) {
