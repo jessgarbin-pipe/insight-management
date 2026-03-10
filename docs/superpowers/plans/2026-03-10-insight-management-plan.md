@@ -8,7 +8,7 @@
 
 ## Phase 1: Project Scaffolding
 
-**Goal:** Bootable Next.js app deployed to Vercel with Supabase connected and Tailwind configured.
+**Goal:** Bootable Next.js app deployed to Vercel with Supabase connected, Tailwind configured, and Shadcn UI initialized with the project's design preset.
 
 ### Step 1.1: Initialize Next.js Project
 
@@ -32,12 +32,44 @@ npx create-next-app@latest insight-management \
 - App Router is the only routing mechanism (no `pages/` directory).
 - TypeScript strict mode is enabled.
 
-### Step 1.2: Project Directory Structure
+### Step 1.2: Initialize Shadcn UI
+
+**Complexity:** Simple
+**Dependencies:** Step 1.1 (Next.js project must exist)
+
+**Actions:**
+```bash
+npx shadcn init --preset auJPE5g
+```
+
+This preset configures the project's design system including colors, theme, fonts, border radius, and icon library. It sets up `components.json`, updates `globals.css` with CSS variables, and configures the `cn()` utility function.
+
+**Post-init:** Install commonly used Shadcn UI components needed across the app:
+```bash
+npx shadcn add button card badge input select dropdown-menu table tabs dialog sheet separator skeleton toast
+```
+
+**Notes:**
+- Shadcn UI components are installed into `src/components/ui/` as source files (not node_modules).
+- They are built on Radix UI primitives + Tailwind CSS.
+- All custom components in this project should compose Shadcn UI components rather than building from raw HTML/Tailwind.
+- The preset handles all theming (colors, radius, fonts) -- do not override these manually.
+
+**Acceptance criteria:**
+- `components.json` exists with the preset configuration.
+- `src/components/ui/` contains all installed component files.
+- `globals.css` includes the Shadcn theme CSS variables from the preset.
+- `cn()` utility is available at `src/lib/utils.ts`.
+- Running `npm run dev` shows the app with the preset's design system applied.
+
+### Step 1.3: Project Directory Structure
 
 **Complexity:** Simple
 **Files/directories created:**
 ```
 src/
+  components/
+    ui/                         # Shadcn UI components (auto-generated, do not edit directly)
   app/
     layout.tsx                  # Root layout with global styles, fonts
     page.tsx                    # Briefing main screen (/)
@@ -131,10 +163,10 @@ src/
       ColumnMapper.tsx           # Column mapping UI
       CsvPreview.tsx             # Preview table
     shared/
-      Badge.tsx                  # Status/impact badges
-      Pagination.tsx             # Pagination controls
-      EmptyState.tsx             # Empty state messages
-      LoadingSpinner.tsx         # Loading indicator
+      StatusBadge.tsx            # Status/impact badges (wraps Shadcn Badge)
+      Pagination.tsx             # Pagination controls (uses Shadcn Button)
+      EmptyState.tsx             # Empty state messages (uses Shadcn Card + Button)
+      LoadingSpinner.tsx         # Loading indicator (uses Shadcn Skeleton)
 ```
 
 **Acceptance criteria:**
@@ -142,7 +174,7 @@ src/
 - Navigation between pages works.
 - No `pages/` directory exists.
 
-### Step 1.3: Install Dependencies
+### Step 1.4: Install Dependencies
 
 **Complexity:** Simple
 **File modified:** `package.json`
@@ -158,12 +190,13 @@ npm install -D @types/papaparse
 - `@anthropic-ai/sdk` -- Official Anthropic SDK for Claude API calls.
 - `papaparse` -- CSV parsing library.
 - Tailwind CSS is included via `create-next-app`.
+- Shadcn UI dependencies (Radix UI, class-variance-authority, clsx, tailwind-merge, etc.) are installed automatically by `npx shadcn init` in Step 1.2.
 
 **Acceptance criteria:**
 - All packages install without errors.
 - No version conflicts.
 
-### Step 1.4: Environment Variables
+### Step 1.5: Environment Variables
 
 **Complexity:** Simple
 **Files created:**
@@ -191,7 +224,7 @@ CRON_SECRET=your-cron-secret
 - `.env.local` is in `.gitignore`.
 - App fails gracefully if environment variables are missing (log error, don't crash).
 
-### Step 1.5: Supabase Client Setup
+### Step 1.6: Supabase Client Setup
 
 **Complexity:** Simple
 **Files created:**
@@ -232,7 +265,7 @@ npm install @supabase/ssr
 - Browser client uses anon key.
 - Both clients can connect to Supabase.
 
-### Step 1.6: Root Layout and Navigation
+### Step 1.7: Root Layout and Navigation
 
 **Complexity:** Simple
 **Files modified:**
@@ -245,14 +278,15 @@ npm install @supabase/ssr
 **Layout structure:**
 - App-wide header with navigation links: Briefing, Explorer (Themes, Opportunities, Insights), Ask, Ingest.
 - Content area below the header.
-- Tailwind CSS for all styling. No external UI library.
+- Use Shadcn UI components: `Button` for nav items, `Sheet` for mobile navigation, `Separator` for dividers.
+- All styling uses Tailwind CSS classes + Shadcn UI design tokens from the preset.
 
 **Acceptance criteria:**
 - All navigation links work.
 - Active link is visually highlighted.
 - Layout is responsive (desktop-first, usable on tablet).
 
-### Step 1.7: Vercel Deployment Configuration
+### Step 1.8: Vercel Deployment Configuration
 
 **Complexity:** Simple
 **Files created:**
@@ -1100,28 +1134,45 @@ export async function askQuestion(
 
 **Complexity:** Simple
 **Files created:**
-- `src/components/shared/Badge.tsx` -- Colored badge for status, impact, sentiment, urgency.
-- `src/components/shared/Pagination.tsx` -- Page navigation controls.
-- `src/components/shared/EmptyState.tsx` -- Illustration + message + CTA button.
-- `src/components/shared/LoadingSpinner.tsx` -- Loading indicator.
+- `src/components/shared/StatusBadge.tsx` -- Wraps Shadcn `Badge` with status-specific color variants.
+- `src/components/shared/Pagination.tsx` -- Page navigation using Shadcn `Button` components.
+- `src/components/shared/EmptyState.tsx` -- Empty state card using Shadcn `Card` + `Button` for CTA.
+- `src/components/shared/LoadingSpinner.tsx` -- Loading indicator using Shadcn `Skeleton` components.
 
-**Design tokens (Tailwind):**
-- Status colors: open=blue, related=yellow, closed=green, archived=gray.
-- Impact: high=red, medium=orange, low=green.
-- Sentiment: positive=green, negative=red, neutral=gray.
-- Trend: growing=green arrow up, stable=gray arrow right, declining=red arrow down.
+**Shadcn UI components used throughout the app:**
+- `Badge` -- For status, impact, sentiment, urgency, and type labels.
+- `Button` -- All interactive buttons, navigation items, form submissions.
+- `Card` / `CardHeader` / `CardContent` -- Theme cards, opportunity cards, insight cards, briefing items.
+- `Table` / `TableHeader` / `TableRow` / `TableCell` -- Insights list view, CSV preview.
+- `Input` -- Text inputs, search bars.
+- `Select` -- Dropdowns for filters, status changes, column mapping.
+- `DropdownMenu` -- Bulk action menus, context menus.
+- `Dialog` -- Confirmation dialogs, RICE override modal.
+- `Tabs` -- Ingest page (manual entry vs CSV upload).
+- `Skeleton` -- Loading states for all data views.
+- `Toast` -- Success/error notifications for actions.
+- `Separator` -- Visual dividers between sections.
+- `Sheet` -- Mobile navigation sidebar.
+
+**Design tokens (from Shadcn preset):**
+- Use the preset's color system via CSS variables (e.g., `bg-primary`, `text-muted-foreground`).
+- Status-specific variant colors: open=blue, related=yellow, closed=green, archived=muted.
+- Impact: high=destructive, medium=warning (custom), low=success (custom).
+- Sentiment: positive=green, negative=destructive, neutral=muted.
+- Trend: growing=green arrow up, stable=muted arrow right, declining=destructive arrow down.
 
 **Acceptance criteria:**
+- All custom components compose Shadcn UI primitives (no raw HTML buttons, inputs, etc.).
 - Components are reusable across all pages.
-- Consistent styling throughout the app.
+- Consistent styling from the Shadcn preset throughout the app.
 
 ### Step 5.2: Briefing Page (Main Screen)
 
 **Complexity:** Complex
 **Files created/modified:**
 - `src/app/page.tsx` -- Main briefing page (Server Component wrapper).
-- `src/components/briefing/BriefingSummary.tsx` -- AI summary display.
-- `src/components/briefing/BriefingItem.tsx` -- Action item with Accept/Dismiss buttons.
+- `src/components/briefing/BriefingSummary.tsx` -- AI summary display (uses Shadcn `Card`).
+- `src/components/briefing/BriefingItem.tsx` -- Action item with Shadcn `Button` (Accept/Dismiss) inside a `Card`.
 
 **Behavior:**
 1. On page load, call `POST /api/briefing`.
@@ -1169,11 +1220,11 @@ export async function askQuestion(
 - `src/app/explorer/opportunities/page.tsx` -- Opportunities list.
 - `src/app/explorer/opportunities/[id]/page.tsx` -- Opportunity detail.
 - `src/components/opportunities/OpportunityCard.tsx`
-- `src/components/opportunities/StatusDropdown.tsx`
+- `src/components/opportunities/StatusDropdown.tsx` -- Uses Shadcn `Select`.
 
 **Layout:**
-- List of cards, each showing: title, description (truncated), insight count, impact badge.
-- Status dropdown on each card (optimistic update on change).
+- List of Shadcn `Card` components, each showing: title, description (truncated), insight count, impact `Badge`.
+- Shadcn `Select` for status on each card (optimistic update on change).
 - Detail view: full description + linked insights.
 
 **Acceptance criteria:**
@@ -1191,10 +1242,10 @@ export async function askQuestion(
 - `src/components/insights/InsightCard.tsx`
 
 **Layout:**
-- Table/list view with columns: title, source, status, priority score, sentiment, type, created date.
-- Filter bar: status (multi-select), theme (dropdown), source (dropdown), date range.
-- Text search input.
-- Bulk action toolbar: appears when insights are selected. Actions: change status.
+- Shadcn `Table` with columns: title, source, status, priority score, sentiment, type, created date.
+- Filter bar: status (multi-select via Shadcn `Select`), theme (Shadcn `Select`), source (Shadcn `Select`), date range (Shadcn `Input` type=date).
+- Text search using Shadcn `Input`.
+- Bulk action toolbar using Shadcn `DropdownMenu`: appears when insights are selected. Actions: change status.
 - Pagination at bottom.
 
 **Default view:** `status=open`, sorted by `priority_score DESC`.
@@ -1251,12 +1302,12 @@ export async function askQuestion(
 - `src/components/ingest/CsvPreview.tsx`
 - `src/components/insights/InsightForm.tsx`
 
-**Layout (two sections, side by side on desktop, tabbed on mobile):**
+**Layout (two sections using Shadcn `Tabs`, side by side on desktop, tabbed on mobile):**
 
 **Section 1: Manual Entry**
-- Form fields: title (required), description (required), source (optional), metadata key-value pairs (add/remove dynamic rows).
-- Submit button.
-- Success message with link to the created insight.
+- Form fields using Shadcn `Input` and `Select`: title (required), description (required), source (optional), metadata key-value pairs (add/remove dynamic rows with Shadcn `Button`).
+- Submit using Shadcn `Button`.
+- Success message using Shadcn `Toast` with link to the created insight.
 
 **Section 2: CSV Upload**
 - Drag-and-drop zone (also clickable for file picker).
@@ -1291,9 +1342,9 @@ export async function askQuestion(
 - `src/app/explorer/insights/[id]/page.tsx` (add RICE form)
 - New component: `src/components/insights/RiceOverride.tsx`
 
-**RICE form on insight detail page:**
+**RICE form on insight detail page (inside a Shadcn `Card` with collapsible content):**
 - Collapsible section "Override Priority with RICE".
-- Four sliders/inputs:
+- Four Shadcn `Input` (type=number) fields or sliders:
   - Reach (1-10)
   - Impact (1-3)
   - Confidence (1-3)
@@ -1408,7 +1459,9 @@ Phases 4 and 5 can proceed in parallel after Phase 3 is complete. Phase 6 requir
 
 1. **Always read the spec** before implementing any phase. The spec at `docs/superpowers/specs/2026-03-10-insight-management-design.md` is the source of truth.
 
-2. **Test each phase** before moving to the next. At minimum:
+2. **Use Shadcn UI for all UI components.** Never build raw HTML buttons, inputs, tables, cards, or dialogs. Always compose from Shadcn UI primitives in `src/components/ui/`. If a Shadcn component doesn't exist for your use case, install it with `npx shadcn add <component>`. The preset (`auJPE5g`) defines the design system -- do not override its theme variables.
+
+3. **Test each phase** before moving to the next. At minimum:
    - Phase 1: App runs locally.
    - Phase 2: Tables exist and constraints work (test with manual SQL inserts).
    - Phase 3: API endpoints return correct data (test with curl or similar).
@@ -1416,12 +1469,12 @@ Phases 4 and 5 can proceed in parallel after Phase 3 is complete. Phase 6 requir
    - Phase 5: UI displays data from the API.
    - Phase 6: RICE override calculates correctly.
 
-3. **Environment variables** must be configured before Phase 3 can work. Provide a clear setup guide.
+4. **Environment variables** must be configured before Phase 3 can work. Provide a clear setup guide.
 
-4. **The vector dimension (1024 vs 1536)** depends on the embedding provider. This is configured once at project setup and must be consistent across the schema and code.
+5. **The vector dimension (1024 vs 1536)** depends on the embedding provider. This is configured once at project setup and must be consistent across the schema and code.
 
-5. **All Claude API calls** should use JSON-mode prompting and validate responses before writing to the database. If parsing fails, retry once, then leave fields as null.
+6. **All Claude API calls** should use JSON-mode prompting and validate responses before writing to the database. If parsing fails, retry once, then leave fields as null.
 
-6. **Vercel serverless functions** have a 10-second default timeout (25 seconds on Pro). Layer 1 processing should be triggered as a background task, not in the response path. Use `waitUntil` from `next/server` for fire-and-forget async work.
+7. **Vercel serverless functions** have a 10-second default timeout (25 seconds on Pro). Layer 1 processing should be triggered as a background task, not in the response path. Use `waitUntil` from `next/server` for fire-and-forget async work.
 
-7. **Supabase migrations** should be run via the Supabase CLI (`supabase db push`) or applied directly in the Supabase dashboard SQL editor for MVP.
+8. **Supabase migrations** should be run via the Supabase CLI (`supabase db push`) or applied directly in the Supabase dashboard SQL editor for MVP.

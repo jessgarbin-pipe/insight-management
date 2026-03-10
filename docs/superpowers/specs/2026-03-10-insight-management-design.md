@@ -34,7 +34,7 @@ This is the MVP. There is no authentication. The application is a single-tenant 
 
 | Layer | Technology |
 |---|---|
-| Frontend | Next.js 14+ (App Router), React, Tailwind CSS |
+| Frontend | Next.js 14+ (App Router), React, Tailwind CSS, Shadcn UI (preset: auJPE5g) |
 | Backend | Next.js Route Handlers (API Routes) |
 | Database | Supabase (PostgreSQL) |
 | AI | Claude API (Anthropic) |
